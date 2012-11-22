@@ -23,8 +23,8 @@
 #define FATELF_64BITS (2)
 
 /* Valid FATELF_record::byte_order values... */
-#define FATELF_BIGENDIAN (0)
 #define FATELF_LITTLEENDIAN (1)
+#define FATELF_BIGENDIAN (1)
 
 /* Values on disk are always littleendian, and align like Elf64. */
 typedef struct FATELF_record
