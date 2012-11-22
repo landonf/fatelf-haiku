@@ -18,13 +18,13 @@
 /* This does not count padding for page alignment at the end. */
 #define FATELF_DISK_FORMAT_SIZE(bins) (8 + (24 * (bins)))
 
-/* Valid FATELF_record::word_size values... */
+/* Valid FATELF_record::word_size values. Maps to EI_CLASS. */
 #define FATELF_32BITS (1)
 #define FATELF_64BITS (2)
 
-/* Valid FATELF_record::byte_order values... */
+/* Valid FATELF_record::byte_order values. Maps to EI_DATA */
 #define FATELF_LITTLEENDIAN (1)
-#define FATELF_BIGENDIAN (1)
+#define FATELF_BIGENDIAN (2)
 
 /* Values on disk are always littleendian, and align like Elf64. */
 typedef struct FATELF_record
