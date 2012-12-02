@@ -17,6 +17,7 @@
 
 #define HAIKU_ELF32_RSRC_ALIGN_MIN  32
 #define HAIKU_ELF64_RSRC_ALIGN      8
+#define HAIKU_FAT_RSRC_ALIGN        8
 
 #define ALIGN(v, a)     (((v + a - 1) / a) * a)
 
@@ -152,11 +153,29 @@ static uint64_t swap64 (uint64_t v) { return xswap64(v); }
 static uint64_t nswap64 (uint64_t v) { return v; }
 
 
+// Determine the file position of the Haiku resources within a FatELF file. The
+// returned offset may extend past the end of the file if no resources
+// are available in the file.
+static bool haiku_fat_rsrc_offset(const char *fname, const int fd,
+                                  const FATELF_header *header,
+                                  uint64_t *offset)
+{
+    const int furthest = find_furthest_record(header);
+    if (furthest < 0)
+        return false;
+
+    const FATELF_record *rec = &header->records[furthest];
+    const uint64_t edge = rec->offset + rec->size;
+
+    *offset = ALIGN(edge, HAIKU_FAT_RSRC_ALIGN);
+    return true;
+}
+
 // Determine the file position of the Haiku resources within an ELF file. The
 // returned offset may extend past the end of the file if no resources
 // are available in the file.
-bool xfind_haiku_rsrc_elf_offset (const char *fname, const int fd,
-                                  uint64_t *offset)
+static bool haiku_elf_rsrc_offset (const char *fname, const int fd,
+                                   uint64_t *offset)
 {
     uint8_t ident[EI_NIDENT];
 
