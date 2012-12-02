@@ -19,7 +19,7 @@ ADD_DEFINITIONS(-DAPPREV="${FATELF_VERSION}")
 
 INCLUDE_DIRECTORIES(include)
 
-ADD_LIBRARY(fatelf-utils STATIC utils/fatelf-utils.c)
+ADD_LIBRARY(fatelf-utils STATIC utils/fatelf-utils.c utils/fatelf-haiku.c)
 
 MACRO(ADD_FATELF_EXECUTABLE _NAME)
     ADD_EXECUTABLE(${_NAME} utils/${_NAME}.c)
