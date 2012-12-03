@@ -15,7 +15,7 @@ static int fatelf_glue(const char *out, const char **bins, const int bincount)
     int i = 0;
     const size_t struct_size = fatelf_header_size(bincount);
     FATELF_header *header = (FATELF_header *) xmalloc(struct_size);
-    const int outfd = xopen(out, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+    const int outfd = xopen(out, O_RDWR | O_CREAT | O_TRUNC, 0755);
     uint64_t offset = FATELF_DISK_FORMAT_SIZE(bincount);
 
     unlink_on_xfail = out;
@@ -78,6 +78,9 @@ static int fatelf_glue(const char *out, const char **bins, const int bincount)
         xclose(fname, fd);
     } // for
 
+    // Write the actual FatELF header now...
+    xwrite_fatelf_header(out, outfd, header);
+
     // rather then perform any complex merging of resources, we select the
     // resources from the first file.
     if (resource.idx >= 0) {
@@ -93,8 +96,6 @@ static int fatelf_glue(const char *out, const char **bins, const int bincount)
         xclose(fname, fd);
     }
 
-    // Write the actual FatELF header now...
-    xwrite_fatelf_header(out, outfd, header);
     xclose(out, outfd);
     free(header);
 
