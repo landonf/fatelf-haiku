@@ -50,10 +50,10 @@ static int fatelf_remove(const char *out, const char *fname,
         memmove(dst, src, sizeof (FATELF_record) * count);
     } // if
 
-    xappend_junk(fname, fd, out, outfd, header);
-
     // Write the actual FatELF header now...
     xwrite_fatelf_header(out, outfd, header);
+
+    xappend_junk(fname, fd, out, outfd);
 
     xclose(out, outfd);
     xclose(fname, fd);

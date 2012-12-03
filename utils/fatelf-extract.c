@@ -36,7 +36,7 @@ static int fatelf_extract(const char *out, const char *fname,
         xlseek(out, outfd, offset, SEEK_SET);
         xcopyfile_range(fname, fd, out, outfd, haiku.offset, haiku.size);
     } else {
-        xappend_junk(fname, fd, out, outfd, header);
+        xappend_junk(fname, fd, out, outfd);
     }
 
     xclose(out, outfd);

@@ -901,9 +901,10 @@ const char *fatelf_get_target_name(const FATELF_record *rec, const int wants)
 } // fatelf_get_target_name
 
 
-int xfind_junk(const char *fname, const int fd, const FATELF_header *header,
-               uint64_t *offset, uint64_t *size)
+int xfind_junk(const char *fname, const int fd, uint64_t *offset,
+               uint64_t *size)
 {
+    FATELF_header *header = xread_fatelf_header(fname, fd);
     const int furthest = find_furthest_record(header);
 
     if (furthest >= 0)  // presumably, we failed elsewhere, but oh well.
@@ -915,20 +916,22 @@ int xfind_junk(const char *fname, const int fd, const FATELF_header *header,
         {
             *offset = edge;
             *size = fsize - edge;
+
+            free(header);
             return 1;
         } // if
     } // if
 
+    free(header);
     return 0;
 } // xfind_junk
 
 
-void xappend_junk(const char *fname, const int fd,
-                  const char *out, const int outfd,
-                  const FATELF_header *header)
+void xappend_junk(const char *fname, const int fd, const char *out,
+                  const int outfd)
 {
     uint64_t offset, size;
-    if (xfind_junk(fname, fd, header, &offset, &size))
+    if (xfind_junk(fname, fd, &offset, &size))
         xcopyfile_range(fname, fd, out, outfd, offset, size);
 } // xappend_junk
 

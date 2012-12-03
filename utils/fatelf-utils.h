@@ -135,17 +135,15 @@ void xwrite_fatelf_header(const char *fname, const int fd,
 // don't forget to free() the returned pointer!
 FATELF_header *xread_fatelf_header(const char *fname, const int fd);
 
-// Locate non-FatELF data at the end of a FatELF file fd, based on
-//  header header. Returns non-zero if junk found, and fills in offset and
-//  size.
-int xfind_junk(const char *fname, const int fd, const FATELF_header *header,
-               uint64_t *offset, uint64_t *size);
+// Locate non-FatELF data at the end of a FatELF file fd. Returns non-zero if
+// junk found, and fills in offset and size.
+int xfind_junk(const char *fname, const int fd, uint64_t *offset,
+              uint64_t *size);
 
 // Write non-FatELF data at the end of FatELF file fd to current position in
-//  outfd, based on header header.
+//  outfd.
 void xappend_junk(const char *fname, const int fd,
-                  const char *out, const int outfd,
-                  const FATELF_header *header);
+                  const char *out, const int outfd);
 
 // Align a value to the page size.
 uint64_t align_to_page(const uint64_t offset);
