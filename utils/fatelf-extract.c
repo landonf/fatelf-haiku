@@ -8,7 +8,6 @@
 
 #define FATELF_UTILS 1
 #include "fatelf-utils.h"
-#include "fatelf-haiku.h"
 
 static int fatelf_extract(const char *out, const char *fname, 
                           const char *target)
