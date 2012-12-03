@@ -1,11 +1,7 @@
 /*
- * Copyright 2012, Haiku Inc. All Rights Reserved.
- * Copyright 2002-2009, Ingo Weinhold, ingo_weinhold@gmx.de.
+ * Copyright 2012, Landon Fuller <landonf@bikemonkey.org>.
+ * All Rights Reserved.
  * Distributed under the terms of the MIT License.
- * 
- * Authors:
- *		Landon Fuller <landonf@bikemonkey.org>
- *		Ingo Weinhold <ingo_weinhold@gmx.de>
  */
 
 #ifndef FATELF_HAIKU_H
