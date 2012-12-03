@@ -36,10 +36,9 @@ static int fatelf_glue(const char *out, const char **bins, const int bincount)
         int idx;
         uint64_t offset;
         uint64_t size;
-    } haiku = {
-        .idx = -1
-    };
+    } resource;
 
+    resource.idx = -1;
     for (i = 0; i < bincount; i++)
     {
         int j = 0;
@@ -62,11 +61,12 @@ static int fatelf_glue(const char *out, const char **bins, const int bincount)
         xwrite_zeros(out, outfd, (size_t) (binary_offset - offset));
 
         // detect and skip Haiku resource data
-        if (haiku_find_elf_rsrc(fname, fd, &haiku.offset, &haiku.size)) {
-            if (haiku.idx == -1)
-                haiku.idx = i;
+        if (haiku_find_rsrc(fname, fd, &resource.offset, &resource.size))
+        {
+            if (resource.idx == -1)
+                resource.idx = i;
 
-            record->size = xget_file_size(fname, fd) - haiku.size;
+            record->size = xget_file_size(fname, fd) - resource.size;
             xcopyfile_range(fname, fd, out, outfd, 0, record->size);
         } else {
             record->size = xcopyfile(fname, fd, out, outfd);
@@ -80,13 +80,14 @@ static int fatelf_glue(const char *out, const char **bins, const int bincount)
 
     // rather then perform any complex merging of resources, we select the
     // resources from the first file.
-    if (haiku.idx >= 0) {
-        const char *fname = bins[haiku.idx];
+    if (resource.idx >= 0) {
+        const char *fname = bins[resource.idx];
         const int fd = xopen(fname, O_RDONLY, 0755);
 
-        if (haiku_fat_rsrc_offset(out, outfd, header, &offset)) {
+        if (haiku_rsrc_offset(out, outfd, &offset)) {
             xlseek(out, outfd, offset, SEEK_SET);
-            xcopyfile_range(fname, fd, out, outfd, haiku.offset, haiku.size);
+            xcopyfile_range(fname, fd, out, outfd, resource.offset,
+                resource.size);
         }
 
         xclose(fname, fd);

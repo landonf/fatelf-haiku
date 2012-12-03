@@ -15,7 +15,7 @@ static int fatelf_remove(const char *out, const char *fname,
     const int fd = xopen(fname, O_RDONLY, 0755);
     FATELF_header *header = xread_fatelf_header(fname, fd);
     const int idx = xfind_fatelf_record(header, target);
-    const int outfd = xopen(out, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+    const int outfd = xopen(out, O_RDWR | O_CREAT | O_TRUNC, 0755);
     uint64_t offset = FATELF_DISK_FORMAT_SIZE(((int)header->num_records));
     int i;
 

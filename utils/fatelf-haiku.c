@@ -162,8 +162,8 @@ static uint64_t nswap64 (uint64_t v) { return v; }
 // Determine the file position of the Haiku resources within a FatELF file. The
 // returned offset may extend past the end of the file if no resources
 // are available in the file.
-int haiku_fat_rsrc_offset(const char *fname, const int fd,
-                          const FATELF_header *header, uint64_t *offset)
+static int haiku_fat_rsrc_offset(const char *fname, const int fd,
+                                 const FATELF_header *header, uint64_t *offset)
 {
     const int furthest = find_furthest_record(header);
     if (furthest < 0)
@@ -179,7 +179,8 @@ int haiku_fat_rsrc_offset(const char *fname, const int fd,
 // Determine the file position of the Haiku resources within an ELF file. The
 // returned offset may extend past the end of the file if no resources
 // are available in the file.
-int haiku_elf_rsrc_offset(const char *fname, const int fd, uint64_t *offset)
+static int haiku_elf_rsrc_offset(const char *fname, const int fd,
+                                 uint64_t *offset)
 {
     uint8_t ident[EI_NIDENT];
 
@@ -375,23 +376,40 @@ static bool haiku_parse_rsrc_header(const char *fname, const int fd,
     return true;
 }
 
-int haiku_find_elf_rsrc(const char *fname, const int fd, uint64_t *offset,
-                        uint64_t *size)
+int haiku_rsrc_offset(const char *fname, const int fd, uint64_t *offset)
 {
-    if (!haiku_elf_rsrc_offset(fname, fd, offset))
-        return 0;
+    union {
+        uint8_t elf[4];
+        uint32_t fatelf;
+    } magic;
 
-    if (!haiku_parse_rsrc_header(fname, fd, *offset, size))
-        return 0;
+    xlseek(fname, fd, 0, SEEK_SET);
+    xread(fname, fd, &magic, sizeof(magic), 1);
 
-    return 1;
+    // ELF file
+    if (memcmp(magic.elf, ELF_MAGIC, sizeof(magic.elf)) == 0)
+        return haiku_elf_rsrc_offset(fname, fd, offset);
+
+    // FatELF file
+    if (FATELF_HOST_ENDIAN == FATELF_BIGENDIAN)
+        magic.fatelf = xswap32(magic.fatelf);
+
+    if (magic.fatelf == FATELF_MAGIC) {
+        FATELF_header *header = xread_fatelf_header(fname, fd);
+        int ret = haiku_fat_rsrc_offset(fname, fd, header, offset);
+        free(header);
+
+        return ret;
+    }
+
+    // Unknown file
+    return 0;
 }
 
-int haiku_find_fatelf_rsrc(const char *fname, const int fd,
-                           const FATELF_header *header, uint64_t *offset,
-                           uint64_t *size)
+int haiku_find_rsrc(const char *fname, const int fd, uint64_t *offset,
+                    uint64_t *size)
 {
-    if (!haiku_fat_rsrc_offset(fname, fd, header, offset))
+    if (!haiku_rsrc_offset(fname, fd, offset))
         return 0;
 
     if (!haiku_parse_rsrc_header(fname, fd, *offset, size))

@@ -10,6 +10,7 @@
 
 #define FATELF_UTILS 1
 #include "fatelf-utils.h"
+#include "fatelf-haiku.h"
 
 #include <errno.h>
 #include <unistd.h>
@@ -931,8 +932,17 @@ void xappend_junk(const char *fname, const int fd, const char *out,
                   const int outfd)
 {
     uint64_t offset, size;
-    if (xfind_junk(fname, fd, &offset, &size))
+    if (haiku_find_rsrc(fname, fd, &offset, &size)) {
+        uint64_t outoff;
+        if (!haiku_rsrc_offset(out, outfd, &outoff))
+            xfail("Could not determine target offset for Haiku resources");
+
+        xlseek(out, outfd, outoff, SEEK_SET);
         xcopyfile_range(fname, fd, out, outfd, offset, size);
+    } else {
+        if (xfind_junk(fname, fd, &offset, &size))
+            xcopyfile_range(fname, fd, out, outfd, offset, size);
+    }
 } // xappend_junk
 
 

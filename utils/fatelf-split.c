@@ -113,7 +113,7 @@ static int fatelf_split(const char *fname)
         #undef TEST_WANT
 
         out = make_filename(fname, wants, rec);
-        outfd = xopen(out, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+        outfd = xopen(out, O_RDWR | O_CREAT | O_TRUNC, 0755);
         unlink_on_xfail = out;
         xcopyfile_range(fname, fd, out, outfd, rec->offset, rec->size);
         xappend_junk(fname, fd, out, outfd);
