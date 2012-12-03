@@ -8,6 +8,7 @@
 
 #define FATELF_UTILS 1
 #include "fatelf-utils.h"
+#include "fatelf-haiku.h"
 
 static int fatelf_glue(const char *out, const char **bins, const int bincount)
 {
@@ -31,6 +32,14 @@ static int fatelf_glue(const char *out, const char **bins, const int bincount)
     header->version = FATELF_FORMAT_VERSION;
     header->num_records = bincount;
 
+    struct {
+        int idx;
+        uint64_t offset;
+        uint64_t size;
+    } haiku = {
+        .idx = -1
+    };
+
     for (i = 0; i < bincount; i++)
     {
         int j = 0;
@@ -51,12 +60,37 @@ static int fatelf_glue(const char *out, const char **bins, const int bincount)
 
         // append this binary to the final file, padded to page alignment.
         xwrite_zeros(out, outfd, (size_t) (binary_offset - offset));
-        record->size = xcopyfile(fname, fd, out, outfd);
+
+        // detect and skip Haiku resource data
+        if (haiku_find_elf_rsrc(fname, fd, &haiku.offset, &haiku.size)) {
+            if (haiku.idx == -1)
+                haiku.idx = i;
+
+            record->size = xget_file_size(fname, fd) - haiku.size;
+            xcopyfile_range(fname, fd, out, outfd, 0, record->size);
+        } else {
+            record->size = xcopyfile(fname, fd, out, outfd);
+        }
+
         offset = binary_offset + record->size;
 
         // done with this binary!
         xclose(fname, fd);
     } // for
+
+    // rather then perform any complex merging of resources, we select the
+    // resources from the first file.
+    if (haiku.idx >= 0) {
+        const char *fname = bins[haiku.idx];
+        const int fd = xopen(fname, O_RDONLY, 0755);
+
+        if (haiku_fat_rsrc_offset(out, outfd, header, &offset)) {
+            xlseek(out, outfd, offset, SEEK_SET);
+            xcopyfile_range(fname, fd, out, outfd, haiku.offset, haiku.size);
+        }
+
+        xclose(fname, fd);
+    }
 
     // Write the actual FatELF header now...
     xwrite_fatelf_header(out, outfd, header);

@@ -15,14 +15,20 @@
 
 #include "fatelf-haiku.h"
 
+#define HAIKU_RSRC_HEADER_MAGIC     0x444f1000
+
 #define HAIKU_ELF32_RSRC_ALIGN_MIN  32
+// FATELF_REVIEW: Should we recommend this be changed to page alignment before
+// the Haiku binary ABI is stabilized?
 #define HAIKU_ELF64_RSRC_ALIGN      8
+// FATELF_REVIEW: Should this be page aligned? We're just borrowing the
+// alignment used by the existing Haiku ELF64 code
 #define HAIKU_FAT_RSRC_ALIGN        8
 
 #define ALIGN(v, a)     (((v + a - 1) / a) * a)
 
 // Standard ELF definitions.
-#define ELF_MAGIC   "\x7f""ELF"
+#define ELF_MAGIC   "\177ELF"
 
 #define EI_NIDENT   16
 #define EI_CLASS    4
@@ -156,32 +162,31 @@ static uint64_t nswap64 (uint64_t v) { return v; }
 // Determine the file position of the Haiku resources within a FatELF file. The
 // returned offset may extend past the end of the file if no resources
 // are available in the file.
-static bool haiku_fat_rsrc_offset(const char *fname, const int fd,
-                                  const FATELF_header *header,
-                                  uint64_t *offset)
+int haiku_fat_rsrc_offset(const char *fname, const int fd,
+                          const FATELF_header *header, uint64_t *offset)
 {
     const int furthest = find_furthest_record(header);
     if (furthest < 0)
-        return false;
+        return 0;
 
     const FATELF_record *rec = &header->records[furthest];
     const uint64_t edge = rec->offset + rec->size;
 
     *offset = ALIGN(edge, HAIKU_FAT_RSRC_ALIGN);
-    return true;
+    return 1;
 }
 
 // Determine the file position of the Haiku resources within an ELF file. The
 // returned offset may extend past the end of the file if no resources
 // are available in the file.
-static bool haiku_elf_rsrc_offset (const char *fname, const int fd,
-                                   uint64_t *offset)
+int haiku_elf_rsrc_offset(const char *fname, const int fd, uint64_t *offset)
 {
     uint8_t ident[EI_NIDENT];
 
+    xlseek(fname, fd, 0, SEEK_SET);
     xread(fname, fd, ident, sizeof(ident), 1);
-    if (memcmp(ident, ELF_MAGIC, sizeof(ELF_MAGIC)) != 0)
-        return false;
+    if (memcmp(ident, ELF_MAGIC, 4) != 0)
+        return 0;
 
     uint64_t (*get64)(uint64_t v) = nswap64;
     uint32_t (*get32)(uint32_t v) = nswap32;
@@ -250,9 +255,9 @@ static bool haiku_elf_rsrc_offset (const char *fname, const int fd,
         xread(fname, fd, headers, tableSize, 1);
 
         if (ident[EI_CLASS] == FATELF_32BITS) {
-            struct Elf32_Phdr **phdrs = headers;
+            struct Elf32_Phdr *phdrs = headers;
             for (i = 0; i < elfData.prog.header_count; i++) {
-                struct Elf32_Phdr *phdr = phdrs[i];
+                struct Elf32_Phdr *phdr = phdrs + i;
                 uint32_t type = get32(phdr->p_type);
                 uint64_t offset = get32(phdr->p_offset);
                 uint64_t size = get32(phdr->p_filesz);
@@ -269,9 +274,9 @@ static bool haiku_elf_rsrc_offset (const char *fname, const int fd,
                     rsrcAlign = alignment;
             }
         } else {
-            struct Elf64_Phdr **phdrs = headers;
+            struct Elf64_Phdr *phdrs = headers;
             for (i = 0; i < elfData.prog.header_count; i++) {
-                struct Elf64_Phdr *phdr = phdrs[i];
+                struct Elf64_Phdr *phdr = phdrs + i;
                 uint32_t type = get32(phdr->p_type);
                 uint64_t offset = get64(phdr->p_offset);
                 uint64_t size = get64(phdr->p_filesz);
@@ -302,9 +307,9 @@ static bool haiku_elf_rsrc_offset (const char *fname, const int fd,
         void *headers = xmalloc(tableSize);
         xread(fname, fd, headers, tableSize, 1);
         if (ident[EI_CLASS] == FATELF_32BITS) {
-            struct Elf32_Shdr **shdrs = headers;
+            struct Elf32_Shdr *shdrs = headers;
             for (i = 0; i < elfData.sect.header_count; i++) {
-                struct Elf32_Shdr *shdr = shdrs[i];
+                struct Elf32_Shdr *shdr = shdrs + i;
                 uint32_t type = get32(shdr->sh_type);
                 uint64_t offset = get32(shdr->sh_offset);
                 uint64_t size = get32(shdr->sh_size);
@@ -318,9 +323,9 @@ static bool haiku_elf_rsrc_offset (const char *fname, const int fd,
                     rsrcOffset = sectEnd;
             }
         } else {
-            struct Elf64_Shdr **shdrs = headers;
+            struct Elf64_Shdr *shdrs = headers;
             for (i = 0; i < elfData.sect.header_count; i++) {
-                struct Elf64_Shdr *shdr = shdrs[i];
+                struct Elf64_Shdr *shdr = shdrs + i;
                 uint32_t type = get32(shdr->sh_type);
                 uint64_t offset = get64(shdr->sh_offset);
                 uint64_t size = get64(shdr->sh_size);
@@ -344,30 +349,53 @@ static bool haiku_elf_rsrc_offset (const char *fname, const int fd,
 
     *offset = ALIGN(rsrcOffset, rsrcAlign);
 
+    return 1;
+}
+
+static bool haiku_parse_rsrc_header(const char *fname, const int fd,
+                                    uint64_t offset, uint64_t *size)
+{
+    // TODO - compute actual resource size by reading the resource table
+    uint64_t fileSize = xget_file_size(fname, fd);
+    if (fileSize <= offset) {
+        return false;
+    }
+    *size = fileSize - offset;
+
+    uint32_t magic;
+    xlseek(fname, fd, offset, SEEK_SET);
+    xread(fname, fd, &magic, sizeof(magic), 1);
+
+    if (magic != HAIKU_RSRC_HEADER_MAGIC &&
+        xswap32(magic) != HAIKU_RSRC_HEADER_MAGIC)
+    {
+        return false;
+    }
+
     return true;
 }
 
-// TODO
-#if 0
-int xfind_haiku_rsrc(const char *fname, const int fd,
-                     const FATELF_header *header, uint64_t *offset,
-                     uint64_t *size)
+int haiku_find_elf_rsrc(const char *fname, const int fd, uint64_t *offset,
+                        uint64_t *size)
 {
-    const int furthest = find_furthest_record(header);
-    if (furthest < 0)
+    if (!haiku_elf_rsrc_offset(fname, fd, offset))
         return 0;
 
-    const uint64_t fsize = xget_file_size(fname, fd);
-    const FATELF_record *rec = &header->records[furthest];
-    const uint64_t edge = rec->offset + rec->size;
-    if (fsize <= edge)
+    if (!haiku_parse_rsrc_header(fname, fd, *offset, size))
         return 0;
 
-    // Extra data found
-    *offset = edge;
-    *size = fsize - edge;
-
-
-    return 0;
+    return 1;
 }
-#endif
+
+int haiku_find_fatelf_rsrc(const char *fname, const int fd,
+                           const FATELF_header *header, uint64_t *offset,
+                           uint64_t *size)
+{
+    if (!haiku_fat_rsrc_offset(fname, fd, header, offset))
+        return 0;
+
+    if (!haiku_parse_rsrc_header(fname, fd, *offset, size))
+        return 0;
+
+    return 1;
+}

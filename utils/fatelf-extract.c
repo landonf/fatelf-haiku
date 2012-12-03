@@ -8,6 +8,7 @@
 
 #define FATELF_UTILS 1
 #include "fatelf-utils.h"
+#include "fatelf-haiku.h"
 
 static int fatelf_extract(const char *out, const char *fname, 
                           const char *target)
@@ -15,13 +16,29 @@ static int fatelf_extract(const char *out, const char *fname,
     const int fd = xopen(fname, O_RDONLY, 0755);
     FATELF_header *header = xread_fatelf_header(fname, fd);
     const int recidx = xfind_fatelf_record(header, target);
-    const int outfd = xopen(out, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+    const int outfd = xopen(out, O_RDWR | O_CREAT | O_TRUNC, 0755);
     const FATELF_record *rec = &header->records[recidx];
 
     unlink_on_xfail = out;
 
     xcopyfile_range(fname, fd, out, outfd, rec->offset, rec->size);
-    xappend_junk(fname, fd, out, outfd, header);
+
+    struct {
+        uint64_t offset;
+        uint64_t size;
+    } haiku;
+
+    if (haiku_find_fatelf_rsrc(fname, fd, header, &haiku.offset, &haiku.size)) {
+        uint64_t offset;
+        if (!haiku_elf_rsrc_offset(out, outfd, &offset))
+            xfail("Could not determine appropriate offset for Haiku resources");
+
+        xlseek(out, outfd, offset, SEEK_SET);
+        xcopyfile_range(fname, fd, out, outfd, haiku.offset, haiku.size);
+    } else {
+        xappend_junk(fname, fd, out, outfd, header);
+    }
+
     xclose(out, outfd);
     xclose(fname, fd);
     free(header);

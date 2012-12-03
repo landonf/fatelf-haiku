@@ -9,6 +9,18 @@
  */
 
 #ifndef FATELF_HAIKU_H
-#define FATELF_HAIKU_H 1
+#define FATELF_HAIKU_H
+
+int haiku_fat_rsrc_offset(const char *fname, const int fd,
+                                  const FATELF_header *header,
+                                  uint64_t *offset);
+int haiku_elf_rsrc_offset(const char *fname, const int fd, uint64_t *offset);
+
+
+int haiku_find_elf_rsrc(const char *fname, const int fd, uint64_t *offset,
+                        uint64_t *size);
+int haiku_find_fatelf_rsrc(const char *fname, const int fd,
+                     const FATELF_header *header, uint64_t *offset,
+                     uint64_t *size);
 
 #endif /* FATELF_HAIKU_H */
