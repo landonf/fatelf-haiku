@@ -8,6 +8,7 @@
 
 #define FATELF_UTILS 1
 #include "fatelf-utils.h"
+#include "fatelf-haiku.h"
 
 static int fatelf_info(const char *fname)
 {
@@ -19,11 +20,16 @@ static int fatelf_info(const char *fname)
     printf("%s: FatELF format version %d\n", fname, (int) header->version);
     printf("%d records.\n", (int) header->num_records);
 
-    if (xfind_junk(fname, fd, &junkoffset, &junksize))
+    if (haiku_find_rsrc(fname, fd, &junkoffset, &junksize))
+    {
+        printf("%llu bytes of shared Haiku resource data at offset %llu.\n",
+               (unsigned long long) junksize, (unsigned long long) junkoffset);
+    }
+    else if (xfind_junk(fname, fd, &junkoffset, &junksize))
     {
         printf("%llu bytes of junk appended, starting at offset %llu.\n",
                (unsigned long long) junksize, (unsigned long long) junkoffset);
-    } // if
+    } // else if
 
     for (i = 0; i < header->num_records; i++)
     {
